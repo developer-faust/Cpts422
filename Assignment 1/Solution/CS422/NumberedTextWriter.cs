@@ -25,6 +25,7 @@ namespace CS422
     public NumberedTextWriter(TextWriter wrapThis)
     {
       _writer = wrapThis;
+      _lineNumber = 0;
     }
 
     /// <param name="wrapThis">The text writer object to wrap.</param>
