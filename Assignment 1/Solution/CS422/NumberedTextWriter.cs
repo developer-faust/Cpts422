@@ -1,7 +1,7 @@
 ﻿// Colin Phillips
 // 11357836
 // CS 422 - Fall 2016
-// Assignment 1 (Part 1)
+// Assignment 1
 
 using System.IO;
 using System.Text;

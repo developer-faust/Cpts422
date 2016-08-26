@@ -1,7 +1,7 @@
 ﻿// Colin Phillips
 // 11357836
 // CS 422 - Fall 2016
-// Assignment 1 (Part 2)
+// Assignment 1
 
 using System;
 using System.IO;
@@ -12,7 +12,6 @@ namespace CS422
   {
     private long _position;
     private long _length;
-
 
     public override bool CanRead => true;
     public override bool CanSeek => true;
@@ -134,21 +133,39 @@ namespace CS422
       return _position;
     }
 
+    /// <summary>
+    /// Modify the length of the stream in bytes.
+    /// </summary>
+    /// <param name="value">The new length of the stream in bytes.</param>
     public override void SetLength(long value)
     {
+      // An argument less than zero defaults the stream's length to 0.
       _length = (0 > value) ? 0 : value;
     }
 
+    /// <summary>
+    /// Read from the stream into the provided buffer at the provided offset for 
+    /// a given number of bytes.
+    /// </summary>
+    /// <param name="buffer">The byte array to store the read values into.</param>
+    /// <param name="offset">The position in the buffer to read the values into.</param>
+    /// <param name="count">The number of values to read into the buffer.</param>
+    /// <returns></returns>
     public override int Read(byte[] buffer, int offset, int count)
     {
       int bytesRead = 0;
 
       if (0 > offset && Length -1 < offset)
       {
-        while (count > 0)
+        for (int bufPos = offset; bufPos < count; bufPos++)
         {
-          buffer[offset] = Convert.ToByte(offset);
-          count--;
+          if (bufPos >= Length)
+          {
+            break;
+          }
+
+          buffer[bufPos] = (byte) ((byte) Position % 256);
+          bytesRead++;
         }
       }
 
