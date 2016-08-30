@@ -1,14 +1,15 @@
 ﻿using System;
 using System.IO;
+using NUnit;
+using NUnit.Framework;
 using CS422;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Test
 {
-  [TestClass]
+  [TestFixture ()]
   public class TextWriterTest
   {
-    [TestMethod]
+	[Test ()]
     public void TestMethodDefaultCstr()
     {
       string[] testStrings =
@@ -31,7 +32,7 @@ namespace Test
       }
     }
 
-    [TestMethod]
+	[Test ()]
     public void TestMethodAltCstr()
     {
       string[] testStrings =
@@ -54,7 +55,7 @@ namespace Test
       }
     }
 
-    [TestMethod]
+	[Test ()]
     public void TestMethodEmptyStrings()
     {
       using (var stringWriter = new StringWriter())
@@ -75,7 +76,7 @@ namespace Test
       }
     }
 
-    [TestMethod]
+	[Test ()]
     public void TestMethodNullStrings()
     {
       using (var stringWriter = new StringWriter())
@@ -98,7 +99,7 @@ namespace Test
       }
     }
 
-    [TestMethod]
+	[Test ()]
     public void TestMethodWriteVsWriteLine()
     {
       using (var stringWriter = new StringWriter())
