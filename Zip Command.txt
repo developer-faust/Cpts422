@@ -1,0 +1,6 @@
+linux command zip:
+
+zip MyHW1.zip *.cs
+
+unzip MyHW1.zip
+

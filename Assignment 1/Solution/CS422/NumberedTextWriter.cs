@@ -25,7 +25,7 @@ namespace CS422
     public NumberedTextWriter(TextWriter wrapThis)
     {
       _writer = wrapThis;
-      _lineNumber = 0;
+      _lineNumber = 1;
     }
 
     /// <param name="wrapThis">The text writer object to wrap.</param>
@@ -36,16 +36,27 @@ namespace CS422
       _lineNumber = startingLineNumber;
     }
 
+    public override void WriteLine()
+    {
+      _writer.WriteLine(_lineNumber + ": ");
+
+      _lineNumber++;
+    }
+
     /// <summary>
     /// Prints the provided string after appending the current line number.
     /// </summary>
     /// <param name="value">The string to write.</param>
     public override void WriteLine(string value)
     {
-      _writer.Write(_lineNumber + ":");
-      _writer.WriteLine(value);
+      _writer.WriteLine(_lineNumber + ": " + value);
 
       _lineNumber++;
+    }
+
+    public override void Write(string value)
+    {
+      _writer.Write(value);
     }
   }
 }

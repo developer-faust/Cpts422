@@ -54,13 +54,24 @@ namespace CS422
     /// <param name="length">The length of the stream in bytes.</param>
     public IndexedNumsStream(long position, long length)
     {
-      _position = position;
-      _length = length;
+      _length = length < 0 ? 0 : length;
+
+      if (position < 0)
+      {
+        _position = 0;
+      }
+      else if (position > length)
+      {
+        _position = length;
+      }
+      else
+      {
+        _position = position;
+      }
     }
 
     public override void Flush()
     {
-      _position = 0;
     }
 
     /// <summary>
@@ -100,11 +111,11 @@ namespace CS422
             // First position is desired.
             Position = offset;
             break;
-          case SeekOrigin.End:
+          case SeekOrigin.Current:
             // No change.
             Position = Position;
             break;
-          case SeekOrigin.Current:
+          case SeekOrigin.End:
             // The last position is desired.
             Position = Length - 1;
             break;
@@ -155,18 +166,38 @@ namespace CS422
     {
       int bytesRead = 0;
 
-      if (0 > offset && Length -1 < offset)
+      if (offset < 0)
       {
-        for (int bufPos = offset; bufPos < count; bufPos++)
-        {
-          if (bufPos >= Length)
-          {
-            break;
-          }
+        throw new ArgumentOutOfRangeException(nameof(offset));
+      }
 
-          buffer[bufPos] = (byte) ((byte) Position % 256);
-          bytesRead++;
+      if (count < 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(count));
+      }
+
+      if (buffer == null)
+      {
+        throw new ArgumentNullException(nameof(buffer));
+      }
+
+      if (offset + count > buffer.Length)
+      {
+        throw new ArgumentException("Sum of offset and count is greater than buffer length.");
+      }
+
+      Seek(offset, SeekOrigin.Current);
+
+      while (Position < count + offset)
+      {
+        if (Position >= Length)
+        {
+          break;
         }
+
+        buffer[Position] = (byte) ((byte) Position % 256);
+        bytesRead++;
+        Position++;
       }
 
       return bytesRead;
