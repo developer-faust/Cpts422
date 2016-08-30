@@ -73,7 +73,7 @@ namespace CS422
             }
             else if (position > length)
             {
-                _position = length;
+                _position = _length;
             }
             else
             {
@@ -172,6 +172,9 @@ namespace CS422
         /// <param name="buffer">The byte array to store the read values into.</param>
         /// <param name="offset">The position in the buffer to read the values into.</param>
         /// <param name="count">The number of values to read into the buffer.</param>
+        /// <exception cref="ArgumentOutOfRangeException"/>
+        /// <exception cref="ArgumentNullException"/>
+        /// <exception cref="ArgumentException"/>
         /// <returns></returns>
         public override int Read(byte[] buffer, int offset, int count)
         {
@@ -214,6 +217,12 @@ namespace CS422
             return bytesRead;
         }
 
+        /// <summary>
+        /// Not supported.
+        /// </summary>
+        /// <param name="buffer">Buffer.</param>
+        /// <param name="offset">Offset.</param>
+        /// <param name="count">Count.</param>
         public override void Write(byte[] buffer, int offset, int count)
         {
             if (CanWrite)

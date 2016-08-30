@@ -9,11 +9,43 @@ namespace Test
     public class StreamTest
     {
         [Test ()]
-        public void TestMethodBasic()
+        public void TestMethod_Constructor()
         {
-            using (var stream = new IndexedNumsStream(0, 512))
+            using (var stream = new IndexedNumsStream (long.MaxValue, long.MaxValue)) 
+            {
+                Assert.AreEqual (long.MaxValue, stream.Position);
+                Assert.AreEqual (long.MaxValue, stream.Length);
+            }
+
+            using (var stream = new IndexedNumsStream (long.MinValue, long.MinValue)) 
+            {
+                Assert.AreEqual (0, stream.Position);
+                Assert.AreEqual (0, stream.Length);
+            }
+
+            using (var stream = new IndexedNumsStream (long.MinValue, long.MaxValue)) 
+            {
+                Assert.AreEqual (0, stream.Position);
+                Assert.AreEqual (long.MaxValue, stream.Length);
+            }
+
+            using (var stream = new IndexedNumsStream (long.MaxValue, long.MinValue)) 
+            {
+                Assert.AreEqual (0, stream.Position);
+                Assert.AreEqual (0, stream.Length);
+            }
+        }
+
+        [Test ()]
+        public void TestMethod_Basic()
+        {
+            using (var stream = new IndexedNumsStream(0, -1))
             {
                 byte[] buffer = new byte[512];
+
+                Assert.AreEqual (0, stream.Length);
+                stream.SetLength (512);
+                Assert.AreEqual (512, stream.Length);
 
                 stream.Read(buffer, 0, 512);
 
@@ -34,19 +66,25 @@ namespace Test
         }
 
         [Test ()]
-        public void TestMethodPositionAndLengthBounds()
+        public void TestMethod_PositionAndLengthBounds()
         {
             // Initialization of stream wil negative values should automatically set each to 0.
             using (var stream = new IndexedNumsStream(-1, -1))
             {
-            Assert.AreEqual(0, stream.Length); // Length is set back to zero first.
-            Assert.AreEqual(0, stream.Position); // Position is set to 0 (if less than zero).
+                Assert.AreEqual(0, stream.Length); // Length is set back to zero first.
+                Assert.AreEqual(0, stream.Position); // Position is set to 0 (if less than zero).
 
-            stream.SetLength(512); // Changing the length
-            Assert.AreEqual(512, stream.Length);
+                stream.SetLength(512); // Changing the length
+                Assert.AreEqual(512, stream.Length);
 
-            stream.Position = 513; // The position cannot succeed the length.
-            Assert.AreEqual(512, stream.Position); // Position is set to the length.
+                stream.Position = 513; // The position cannot succeed the length.
+                Assert.AreEqual(512, stream.Position); // Position is set to the length.
+
+                stream.Position = long.MinValue;
+                Assert.AreEqual (0, stream.Position);
+
+                stream.Position = 512;
+                Assert.AreEqual (stream.Length, stream.Position);
             }
 
             // Initialization with lowest-low bound.
@@ -65,7 +103,7 @@ namespace Test
         }
 
         [Test ()]
-        public void TestMethodReadingAtBounds()
+        public void TestMethod_ReadingAtBounds()
         {
             using (var stream = new IndexedNumsStream(0, 100))
             {
@@ -114,7 +152,7 @@ namespace Test
 
                 try
                 {
-                    byte[] tempBuff = new byte[50];
+                    byte[] tempBuff = new byte[64];
                     stream.Read(tempBuff, 50, 50);
                     Assert.Fail();
                 }
@@ -126,7 +164,7 @@ namespace Test
         }
 
         [Test ()]
-        public void TestMethodSeek()
+        public void TestMethod_Seek()
         {
             using (var stream = new IndexedNumsStream(0, 512))
             {
@@ -155,5 +193,19 @@ namespace Test
                 Assert.AreEqual(0, stream.Position);
             }
         }
+
+        [Test ()]
+        public void TestMethod_PropertyAccessors()
+        {
+            using (var stream = new IndexedNumsStream (0, 512)) 
+            {
+                Assert.AreEqual (true, stream.CanRead);
+                Assert.AreEqual (true, stream.CanSeek);
+                Assert.AreEqual (false, stream.CanWrite);
+                Assert.AreEqual (512, stream.Length);
+                Assert.AreEqual (0, stream.Position);
+            }
+        }
+
     }
 }
