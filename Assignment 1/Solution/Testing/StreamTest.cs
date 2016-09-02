@@ -2,6 +2,7 @@
 using System.IO;
 using NUnit.Framework;
 using CS422;
+using System.Diagnostics;
 
 namespace Test
 {
@@ -11,45 +12,34 @@ namespace Test
         [Test ()]
         public void TestMethod_Constructor()
         {
-            using (var stream = new IndexedNumsStream (long.MaxValue, long.MaxValue)) 
+            using (var stream = new IndexedNumsStream (long.MaxValue)) 
             {
-                Assert.AreEqual (long.MaxValue, stream.Position);
                 Assert.AreEqual (long.MaxValue, stream.Length);
+                Assert.AreEqual (0, stream.Position);
             }
 
-            using (var stream = new IndexedNumsStream (long.MinValue, long.MinValue)) 
+            using (var stream = new IndexedNumsStream (long.MinValue)) 
             {
                 Assert.AreEqual (0, stream.Position);
                 Assert.AreEqual (0, stream.Length);
-            }
-
-            using (var stream = new IndexedNumsStream (long.MinValue, long.MaxValue)) 
-            {
-                Assert.AreEqual (0, stream.Position);
-                Assert.AreEqual (long.MaxValue, stream.Length);
-            }
-
-            using (var stream = new IndexedNumsStream (long.MaxValue, long.MinValue)) 
-            {
-                Assert.AreEqual (0, stream.Position);
-                Assert.AreEqual (0, stream.Length);
-            }
+            }   
         }
 
         [Test ()]
         public void TestMethod_Basic()
         {
-            using (var stream = new IndexedNumsStream(0, -1))
+            using (var stream = new IndexedNumsStream(int.MaxValue))
             {
-                byte[] buffer = new byte[512];
+                byte[] buffer = new byte[int.MaxValue];
 
-                Assert.AreEqual (0, stream.Length);
-                stream.SetLength (512);
-                Assert.AreEqual (512, stream.Length);
+                stream.Read (buffer, 1898070800, 1898070850);
+                Assert.AreEqual (1898070809 % 256, buffer[1898070809]);
 
+                Assert.AreEqual (int.MaxValue, stream.Length);
+
+                Assert.AreEqual (int.MaxValue, stream.Length);
                 stream.Read(buffer, 0, 512);
 
-                /* Checks for values in range of 0-255 */
                 Assert.AreEqual(0, buffer[0]);
                 Assert.AreEqual(1, buffer[1]);
                 Assert.AreEqual(15, buffer[15]);
@@ -62,14 +52,20 @@ namespace Test
                 Assert.AreEqual(15, buffer[271]);
                 Assert.AreEqual(100, buffer[356]);
                 Assert.AreEqual(255, buffer[511]);
+
+                stream.Read (buffer, 2499999, 3000001);
+                for (int i = 2500000; i < 3000000; i++) 
+                {
+                    Assert.AreEqual (i % 256, buffer [i]);
+                }
             }
         }
 
         [Test ()]
         public void TestMethod_PositionAndLengthBounds()
         {
-            // Initialization of stream wil negative values should automatically set each to 0.
-            using (var stream = new IndexedNumsStream(-1, -1))
+            // Initialization of stream with negative values should automatically set each to 0.
+            using (var stream = new IndexedNumsStream(-1))
             {
                 Assert.AreEqual(0, stream.Length); // Length is set back to zero first.
                 Assert.AreEqual(0, stream.Position); // Position is set to 0 (if less than zero).
@@ -88,24 +84,17 @@ namespace Test
             }
 
             // Initialization with lowest-low bound.
-            using (var stream = new IndexedNumsStream(long.MinValue, long.MinValue))
+            using (var stream = new IndexedNumsStream(long.MinValue))
             {
                 Assert.AreEqual(0, stream.Length);
                 Assert.AreEqual(0, stream.Position);
-            }
-
-            // Initialization with a position greater than the length
-            using (var stream = new IndexedNumsStream(11, 10))
-            {
-                Assert.AreEqual(10, stream.Length);
-                Assert.AreEqual(10, stream.Position);
             }
         }
 
         [Test ()]
         public void TestMethod_ReadingAtBounds()
         {
-            using (var stream = new IndexedNumsStream(0, 100))
+            using (var stream = new IndexedNumsStream(100))
             {
                 var buffer = new byte[512];
 
@@ -156,17 +145,14 @@ namespace Test
                     stream.Read(tempBuff, 50, 50);
                     Assert.Fail();
                 }
-                catch(ArgumentException) 
-                {
-                    //
-                }
+                catch(ArgumentException) { }
             }   
         }
 
         [Test ()]
         public void TestMethod_Seek()
         {
-            using (var stream = new IndexedNumsStream(0, 512))
+            using (var stream = new IndexedNumsStream(512))
             {
                 /* From beginning: */
                 stream.Seek(1000, SeekOrigin.Begin);
@@ -197,7 +183,7 @@ namespace Test
         [Test ()]
         public void TestMethod_PropertyAccessors()
         {
-            using (var stream = new IndexedNumsStream (0, 512)) 
+            using (var stream = new IndexedNumsStream (512)) 
             {
                 Assert.AreEqual (true, stream.CanRead);
                 Assert.AreEqual (true, stream.CanSeek);
@@ -205,7 +191,27 @@ namespace Test
                 Assert.AreEqual (512, stream.Length);
                 Assert.AreEqual (0, stream.Position);
             }
+
+            using (var stream = new IndexedNumsStream(int.MinValue))
+            {
+                Assert.AreEqual(0, stream.Length);
+                Assert.AreEqual(0, stream.Position);
+            }
         }
 
+        [Test ()]
+        public void TestMethod_BytesRead()
+        {
+            using (var stream = new IndexedNumsStream (512)) 
+            {
+                var buffer = new byte[1024];
+
+                int read = stream.Read (buffer, 0, 50);
+                Assert.AreEqual (50, read);
+
+                read = stream.Read (buffer, 450, 63);
+                Assert.AreEqual (61, read);
+            }
+        }
     }
 }

@@ -5,6 +5,7 @@
 
 using System;
 using System.IO;
+using System.Diagnostics;
 
 namespace CS422
 {
@@ -63,22 +64,11 @@ namespace CS422
 
         /// <param name="position">The starting position of the stream.</param>
         /// <param name="length">The length of the stream in bytes.</param>
-        public IndexedNumsStream(long position, long length)
+        public IndexedNumsStream(long length)
         {
             _length = length < 0 ? 0 : length;
 
-            if (position < 0)
-            {
-                _position = 0;
-            }
-            else if (position > length)
-            {
-                _position = _length;
-            }
-            else
-            {
-                _position = position;
-            }
+            _position = 0;
         }
             
         public override void Flush()
@@ -93,63 +83,17 @@ namespace CS422
         /// <returns></returns>
         public override long Seek(long offset, SeekOrigin origin)
         {
-            if (0 > offset)
+            switch (origin)
             {
-                // The offset is moving the position backward from origin.
-                switch (origin)
-                {
-                    case SeekOrigin.Begin:
-                        // Anything less than zero will be zero. So this will set the 
-                        // new position to be the first position (0).
-                        Position = offset;
-                        break;
-                    case SeekOrigin.Current:
-                        // Normal seek (from current position).
-                        Position += offset;
-                        break;
-                    case SeekOrigin.End:
-                        // Normal seek (from last position).
-                        Position = Length + offset;
-                        break;
-                }
-            }
-            else if (0 == offset)
-            {
-                // The offset is not effecting the position. The new position is determined by origin.
-                switch (origin)
-                {
-                    case SeekOrigin.Begin:
-                        // First position is desired.
-                        Position = offset;
-                        break;
-                    case SeekOrigin.Current:
-                        // No change.
-                        Position = Position;
-                        break;
-                    case SeekOrigin.End:
-                        // The last position is desired.
-                        Position = Length;
-                        break;
-                }
-            }
-            else
-            {
-                // The offset is moving the position forward from origin.
-                switch (origin)
-                {
-                    case SeekOrigin.Begin:
-                        // First position is desired.
-                        Position = offset;
-                        break;
-                    case SeekOrigin.Current:
-                        // Normal seek (from current position).
-                        Position += offset;
-                        break;
-                    case SeekOrigin.End:
-                        // Last position is desired.
-                        Position = Length;
-                        break;
-                }
+                case SeekOrigin.Begin:
+                    Position = offset;
+                    break;
+                case SeekOrigin.Current:
+                    Position += offset;
+                    break;
+                case SeekOrigin.End:
+                    Position = Length + offset;
+                    break;
             }
 
             return _position;
@@ -163,6 +107,13 @@ namespace CS422
         {
             // An argument less than zero defaults the stream's length to 0.
             _length = (0 > value) ? 0 : value;
+
+            // After setting the length, the current position may also need to 
+            // be altered
+            if (_position > _length)
+            {
+                Position = _length;
+            }
         }
 
         /// <summary>
@@ -182,34 +133,39 @@ namespace CS422
 
             if (offset < 0)
             {
+                // Offset cannot be negative.
                 throw new ArgumentOutOfRangeException("offset");
             }
 
             if (count < 0)
             {
+                // Count cannot be negative.
                 throw new ArgumentOutOfRangeException("count");
             }
 
             if (buffer == null)
             {
+                // Buffer cannot be null.
                 throw new ArgumentNullException("buffer");
             }
 
             if (offset + count > buffer.Length)
             {
+                // Attempting to read into the buffer beyond its length.
                 throw new ArgumentException("Sum of offset and count is greater than buffer length.");
             }
-
+                
             Seek(offset, SeekOrigin.Begin);
 
-            while (Position < count + offset)
+            while (bytesRead < count)
             {
                 if (Position >= Length)
                 {
+                    // End of stream.
                     break;
                 }
 
-                buffer[Position] = (byte) ((byte) Position % 256);
+                buffer[Position] = (byte) (Position % 256);
                 bytesRead++;
                 Position++;
             }

@@ -57,7 +57,7 @@ namespace Test
             }
 
             using (var stringWriter = new StringWriter())
-            using (var writer = new NumberedTextWriter(stringWriter, -1))
+            using (var writer = new NumberedTextWriter(stringWriter, -1000))
             {
                 foreach(var testString in testStrings)
                 {
@@ -65,7 +65,7 @@ namespace Test
                 }
 
                 Assert.AreEqual(
-                    "1: Hello" + Environment.NewLine + "2: World." + Environment.NewLine,
+                    "-1000: Hello" + Environment.NewLine + "-999: World." + Environment.NewLine,
                     stringWriter.ToString());
             }
         }
