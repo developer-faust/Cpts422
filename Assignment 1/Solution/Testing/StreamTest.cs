@@ -32,7 +32,7 @@ namespace Test
             {
                 byte[] buffer = new byte[int.MaxValue];
 
-                stream.Read (buffer, 1898070800, 1898070850);
+                stream.Read (buffer, 1898070800, 1898071050);
                 Assert.AreEqual (1898070809 % 256, buffer[1898070809]);
 
                 Assert.AreEqual (int.MaxValue, stream.Length);
@@ -53,11 +53,15 @@ namespace Test
                 Assert.AreEqual(100, buffer[356]);
                 Assert.AreEqual(255, buffer[511]);
 
-                stream.Read (buffer, 2499999, 3000001);
+                stream.Read (buffer, 249999999, 300000001);
                 for (int i = 2500000; i < 3000000; i++) 
                 {
                     Assert.AreEqual (i % 256, buffer [i]);
                 }
+
+                stream.SetLength (512);
+                Assert.AreEqual (512, stream.Length);
+                Assert.AreEqual (512, stream.Position);
             }
         }
 
@@ -210,7 +214,7 @@ namespace Test
                 Assert.AreEqual (50, read);
 
                 read = stream.Read (buffer, 450, 63);
-                Assert.AreEqual (61, read);
+                Assert.AreEqual (62, read);
             }
         }
     }
