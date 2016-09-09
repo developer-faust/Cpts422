@@ -1,11 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
+# Visual Studio 14
 VisualStudioVersion = 14.0.25123.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CS422", "CS422\CS422.csproj", "{97697438-0348-4F4D-92D6-E30E000DF318}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "Test\Test.csproj", "{08065D3D-D2B3-477E-997A-4B26CAF54509}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestApp", "TestApp\TestApp.csproj", "{E52F0933-184C-49B4-B1A0-953CDD822A03}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,21 +15,28 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{08065D3D-D2B3-477E-997A-4B26CAF54509}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{08065D3D-D2B3-477E-997A-4B26CAF54509}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{08065D3D-D2B3-477E-997A-4B26CAF54509}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{08065D3D-D2B3-477E-997A-4B26CAF54509}.Release|Any CPU.Build.0 = Release|Any CPU
 		{97697438-0348-4F4D-92D6-E30E000DF318}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{97697438-0348-4F4D-92D6-E30E000DF318}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{97697438-0348-4F4D-92D6-E30E000DF318}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{97697438-0348-4F4D-92D6-E30E000DF318}.Release|Any CPU.Build.0 = Release|Any CPU
+		{08065D3D-D2B3-477E-997A-4B26CAF54509}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08065D3D-D2B3-477E-997A-4B26CAF54509}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08065D3D-D2B3-477E-997A-4B26CAF54509}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08065D3D-D2B3-477E-997A-4B26CAF54509}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E52F0933-184C-49B4-B1A0-953CDD822A03}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E52F0933-184C-49B4-B1A0-953CDD822A03}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E52F0933-184C-49B4-B1A0-953CDD822A03}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E52F0933-184C-49B4-B1A0-953CDD822A03}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
 		Policies = $0
 		$0.DotNetNamingPolicy = $1
 		$1.DirectoryNamespaceAssociation = None
 		$1.ResourceNamePolicy = FileFormatDefault
-		$0.TextStylePolicy = $2
+		$0.TextStylePolicy = $4
 		$2.inheritsSet = VisualStudio
 		$2.inheritsScope = text/plain
 		$2.scope = text/x-csharp
@@ -59,14 +68,10 @@ Global
 		$3.inheritsSet = Mono
 		$3.inheritsScope = text/x-csharp
 		$3.scope = text/x-csharp
-		$0.TextStylePolicy = $4
 		$4.FileWidth = 120
 		$4.TabsToSpaces = False
 		$4.inheritsSet = VisualStudio
 		$4.inheritsScope = text/plain
 		$4.scope = text/plain
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal
