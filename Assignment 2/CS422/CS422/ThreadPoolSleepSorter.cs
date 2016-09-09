@@ -21,6 +21,7 @@ namespace CS422
     	private TextWriter _writer;
         private BlockingCollection<SleepSortTask> _taskCollection = new BlockingCollection<SleepSortTask>();
 		private bool _isDisposed = false;
+        private ushort _threadCount;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CS422.ThreadPoolSleepSorter"/> class.
@@ -37,12 +38,23 @@ namespace CS422
 
 		    _writer = output;
 
-            threadCount = (threadCount <= 0) ? (ushort) 64 : threadCount;
+            _threadCount = (threadCount <= 0) ? (ushort) 64 : threadCount;
 
 		    for (int i = 0; i < threadCount; i++)
 		    {
-                Thread thread = new Thread(new ParameterizedThreadStart(DoThreadWork));
-                thread.Start(_taskCollection);
+                Thread thread = new Thread(() =>
+                    {
+                        while (true) 
+                        {
+                            var task = _taskCollection.Take();
+                            if (null == task)
+                            {
+                                break;
+                            }
+                            task.Execute(_writer);
+                        }
+                    });
+                thread.Start();
 		    }
 	    }
 
@@ -56,6 +68,10 @@ namespace CS422
             if (values == null)
             {
                 throw new ArgumentNullException("value");
+            }
+            if (_isDisposed)
+            {
+                throw new ObjectDisposedException("ThreadPoolSleepSorter");
             }
 
 			foreach (var value in values) 
@@ -83,18 +99,16 @@ namespace CS422
             }
 
             _isDisposed = true;
+
+            for (int i = 0; i < _threadCount; i++)
+            {
+                _taskCollection.Add(null);
+            }
+
+            _taskCollection.CompleteAdding();
+
             _taskCollection.Dispose();
 	    }
-            
-        private void DoThreadWork(object collection)
-		{
-            var coll = (BlockingCollection<SleepSortTask>)collection;
-
-			while (!_isDisposed) 
-			{
-                coll.Take ().Execute(_writer);
-			}
-		}
   	}
 
     internal class SleepSortTask
