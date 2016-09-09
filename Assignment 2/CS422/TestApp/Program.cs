@@ -10,20 +10,20 @@ namespace TestApp
       using (var sorter = new ThreadPoolSleepSorter(Console.Out, 100))
       {
         Random rand = new Random();
-        byte[] toSort = new  byte[10];
+        byte[] toSort = new  byte[5];
 
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 5; i++)
         {
-          toSort[i] =(byte)rand.Next(0, 20);
+          toSort[i] =(byte)rand.Next(0, 10);
         }
 
         sorter.Sort(toSort);
 
         Console.ReadKey();
 
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 5; i++)
         {
-          toSort[i] = (byte)rand.Next(0, 20);
+          toSort[i] = (byte)rand.Next(0, 10);
         }
 
         sorter.Sort(toSort);

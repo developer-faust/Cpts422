@@ -1,9 +1,6 @@
 ﻿/* Colin Phillips
  * CS 422 - Assignment 2
  * Fall 2016 */
-
-using System;
-
 namespace CS422
 {
 	/// <summary>
@@ -13,14 +10,13 @@ namespace CS422
     {
         private PCQNode _head;
         private PCQNode _tail;
-        private PCQNode _dummy;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="CS422.PCQueue"/> class.
 		/// </summary>
         public PCQueue()
         {
-            _head = _tail = _dummy = new PCQNode(-1);
+            _head = _tail = new PCQNode(-1);
         }
 
 		/// <summary>
@@ -39,24 +35,13 @@ namespace CS422
 		/// <param name="out_value">A reference to the int object to place the dequeued value.</param>
         public bool Dequeue(ref int out_value)
         {
-            if (ReferenceEquals(_head, _dummy) && ReferenceEquals(_tail, _dummy))
+            if (ReferenceEquals(_head, _tail))
             {
-                // Empty queue
                 return false;
             }
 
-			out_value = _head.Data;
-
-			if (ReferenceEquals (_head.Next, _tail)) 
-			{
-				// Only one value in the queue (front ref == dummy ref)
-				_head = _tail = _dummy;
-			} 
-			else 
-			{
-				_head.Next = _head.Next.Next;
-			}
-
+            out_value = _head.Next.Data;
+            _head = _head.Next;
 			return true;
         }
     }
