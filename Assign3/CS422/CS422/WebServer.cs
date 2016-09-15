@@ -1,29 +1,41 @@
 ﻿using System;
-using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace CS422
 {
-    internal enum ValidationState
-    {
-        Method = 0,
-        Url = 1,
-        Version = 2,
-        Validated = 3
-    }
-
+    /// <summary>
+    /// A Web Server class that accepts a TCP connection with a client and validates incoming HTTP requests.
+    /// </summary>
     public class WebServer
     {
-        private static readonly string[] ValidMethods = {"GET"};
-
-        private static readonly string[] ValidVersions = {"HTTP/1.1"};
-
+        /// <summary>
+        /// Launch the server and listen on the provided port.
+        /// </summary>
+        /// <param name="port">The port to listen on.</param>
+        /// <param name="responseTemplate">
+        /// The template that will be filled out and returned to the client upon receiving a valid HTTP request.
+        /// </param>
+        /// <returns>
+        /// True if a client sends a valid HTTP request. False otherwise.
+        /// </returns>
+        /// <exception cref="ArgumentOutOfRangeException"/>
+        /// <exception cref="ArgumentNullException"/>
+        /// <exception cref="SocketException"/>
+        /// <exception cref="System.IO.IOException"/>
         public static bool Start(int port, string responseTemplate)
         {
+            if (port < 0)
+            {
+                throw new ArgumentOutOfRangeException("port", "The port number cannot be less than zero.");
+            }
+
+            if (responseTemplate == null)
+            {
+                throw new ArgumentNullException("responseTemplate");
+            }
+
             TcpListener listener = new TcpListener(IPAddress.Any, port);
 
             listener.Start();
@@ -35,77 +47,33 @@ namespace CS422
                 StringBuilder builder = new StringBuilder();
                 HttpRequest request = new HttpRequest();
 
-                while (true)
+                while (request.ValidationState != ValidationState.Validated)
                 {
-                    if (request.ValidationState == ValidationState.Validated)
-                    {
-                        // This request has been deemed valid. 
-                        break;
-                    }
-
                     int bytesRead = networkStream.Read(buf, 0, buf.Length);
 
                     if (bytesRead > 0)
                     {
-                        builder.Append(Encoding.ASCII.GetString(buf));
+                        builder.Append(Encoding.ASCII.GetString(buf).TrimEnd(Constants.NullByte));
                         string temp = builder.ToString();
-                        int encounteredSpaceIndex;
 
-                        if (!request.HasValidMethod && request.ValidationState == ValidationState.Method)
+                        // Attempt to validate the request provided.
+                        // - If validated:
+                        //      The request object's ValidationState will be set to 'Validated'.
+                        // - If Indeterminate:
+                        //      The request object's ValidationState will be set to 'Indeterminate'.
+                        // - If Invalidated:
+                        //      TryValidateHttpRequest will return 'Invalidated' and the connection will close.
+                        if (TryValidateHttpRequest(temp, request) == ValidationState.Invalidated)
                         {
-                            // We are (perhaps still) attempting to determine the request's method.
-                            if ((encounteredSpaceIndex = GetIndexOfSpace(temp, 0)) >= 0)
-                            {
-                                // A space has been detected - we can check the input for a proper method:
-                                string possibleMethod = temp.Substring(0, encounteredSpaceIndex);
-                                if (!IsValidMethod(possibleMethod))
-                                {
-                                    // Invalid method.
-                                    return false;
-                                }
-
-                                // This method has been validated.
-                                request.SetMethod(possibleMethod);
-                            }
-                        }
-
-                        if (!request.HasValidUri && request.ValidationState == ValidationState.Url)
-                        {
-                            // We are (perhaps still) attempting to determine the request's desired URL string.
-                            if ((encounteredSpaceIndex = GetIndexOfSpace(temp, 1)) >= 0)
-                            {
-                                // A space has been detected - we can check the input for a uri:
-                                // Because the "GET " has already been validated, we can skip that 
-                                // portion of the request by taking a substring from just after the 
-                                // method (request.Method.Length + 1; where '+ 1' is the space).
-                                string requestUrl = temp.Substring(request.Method.Length + 1, encounteredSpaceIndex - (request.Method.Length + 1));
-
-                                // This method has been validated.
-                                request.SetRequestUrl(requestUrl);
-                            }
-                        }
-
-                        if (request.ValidationState == ValidationState.Version)
-                        {
-                            // We are (perhaps still) attempting to determine the request's HTTP version.
-                            if ((encounteredSpaceIndex = GetIndexOfCrlf(temp)) >= 0)
-                            {
-                                // A CRLF has been detected.
-
-                                string possibleVersion = temp.Substring(
-                                    request.Method.Length + request.RequestedUrl.Length + 2, 
-                                    encounteredSpaceIndex - (request.Method.Length + request.RequestedUrl.Length + 2));
-
-                                if (!IsValidVersion(possibleVersion))
-                                {
-                                    // Invalid version.
-                                    return false;
-                                }
-
-                                request.SetVersion(possibleVersion);
-                            }
+                            // Some portion of the request has been deemed invalid.
+                            // Sever the connection to the client.
+                            client.Close();
+                            return false;
                         }
                     }
+
+                    // Flush the buffer
+                    for (int i = 0; i < bytesRead; i++) { buf[i] = (byte) Constants.NullByte; }
                 }
 
                 string response = GetResponse(responseTemplate, request);
@@ -117,104 +85,106 @@ namespace CS422
             return true;
         }
 
-        private static bool IsValidMethod(string method)
+        private static ValidationState TryValidateHttpRequest(string value, HttpRequest request)
         {
-            return ValidMethods.Any(m => string.CompareOrdinal(m, method) == 0);
-        }
-
-        private static bool IsValidVersion(string version)
-        {
-            return ValidVersions.Any(v => string.CompareOrdinal(v, version) == 0);
-        }
-
-        private static int GetIndexOfSpace(string value, int numberOfSpacesToIgnore)
-        {
-            for (int i = 0; i < value.Length; i++)
+            if (!request.HasValidMethod && request.ValidationState == ValidationState.Method)
             {
-                if (value[i] == Constants.SingleSpace)
+                // The method has not been validated yet.
+
+                string validMethod = null;
+
+                Verdict verdict = request.IsValidMethod(value, ref validMethod);
+
+                if (verdict == Verdict.Invalid)
                 {
-                    if (numberOfSpacesToIgnore == 0)
+                    // The method was deemed invalid. This will close the connection.
+                    return ValidationState.Invalidated;
+                }
+
+                if (verdict == Verdict.Valid)
+                {
+                    // A valid method was supplied.
+                    request.SetMethod(validMethod);
+                }
+
+                // If neither of the above if-statements were hit, the validity of the 
+                // method is still indeterminate.
+            }
+
+            if (!request.HasValidUri && request.ValidationState == ValidationState.Url)
+            {
+                // We are (perhaps still) attempting to determine the request's desired URL string.
+                int encounteredSpaceIndex = -1;
+                if (request.IsValidUriRequest(value, ref encounteredSpaceIndex) == Verdict.Valid)
+                {
+                    // A space has been detected - we can check the input for a uri:
+                    // Because the "GET " has already been validated, we can skip that 
+                    // portion of the request by taking a substring from just after the 
+                    // method (request.Method.Length + 1; where '+ 1' is the space).
+                    string requestUrl = value.Substring(request.Method.Length + 1, encounteredSpaceIndex - (request.Method.Length + 1));
+
+                    if (requestUrl == string.Empty)
                     {
-                        return i;
+                        // Cannot be an empty string.
+                        return ValidationState.Invalidated;
                     }
 
-                    numberOfSpacesToIgnore--;
+                    // This method has been validated.
+                    request.SetRequestUri(requestUrl);
                 }
             }
 
-            return -1;
-        }
-
-        private static int GetIndexOfCrlf(string value)
-        {
-            for (int i = 0; i < value.Length - 1; i++)
+            if (!request.HasValidVersion && request.ValidationState == ValidationState.Version)
             {
-                if (value[i] == '\r' && value[i + 1] == '\n')
+                string validVersion = null;
+
+                Verdict verdict = request.IsValidVersion(value, ref validVersion);
+
+                if (verdict == Verdict.Invalid)
                 {
-                    return i;
+                    // The version number was deemed invalid. This will close the connection.
+                    return ValidationState.Invalidated;
+                }
+
+                if (verdict == Verdict.Valid)
+                {
+                    // A valid version number was supplied.
+                    request.SetVersion(validVersion);
+                }
+
+                // If neither of the above if-statements were hit, the validity of the 
+                // version number is still indeterminate.
+            }
+
+            if (!request.HasFinishedAddingHeaders && request.ValidationState == ValidationState.Headers)
+            {
+                string headerStart = value.Substring(request.HeaderFirstLineLength);
+                while (!request.HasFinishedAddingHeaders)
+                {
+                    string validField = null, validFieldValue = null;
+
+                    Verdict verdict = request.IsValidHeader(headerStart, ref validField, ref validFieldValue);
+
+                    if (verdict == Verdict.Indeterminate)
+                    {
+                        // The request is not complete - go grab more from the stream.
+                        break;
+                    }
+
+                    if (verdict == Verdict.Valid)
+                    {
+                        request.AddHeader(validField, validFieldValue);
+                    }
+
                 }
             }
 
-            return -1;
+            return request.ValidationState;
         }
 
         private static string GetResponse(string template, HttpRequest request)
         {
-            return 
-                Constants.Version1Dot1 + Constants.SingleSpace + Constants.Response200 + Constants.Crlf +
-                Constants.HtmlContentType + Constants.Crlf + Constants.Crlf + Constants.Crlf + 
-                string.Format(template, Constants.MyId, DateTime.Now, request.RequestedUrl);
+            return string.Format(template, Constants.MyId, DateTime.Now, request.RequestedUri);
         }
-    }
-
-    internal class HttpRequest
-    {
-        public HttpRequest()
-        {
-            Method = RequestedUrl = Version = string.Empty;
-            ValidationState = ValidationState.Method;
-        }
-
-        public ValidationState ValidationState { get; private set; }
-
-        public string Method { get; private set; }
-        public string RequestedUrl { get; private set; }
-        public string Version { get; private set; }
-
-        public bool HasValidMethod { get; private set; }
-        public bool HasValidUri { get; private set; }
-        public bool HasValidVersion { get; private set; }
-
-        public void SetMethod(string method)
-        {
-            Method = method;
-            HasValidMethod = true;
-            ValidationState++;
-        }
-
-        public void SetRequestUrl(string requestUrl)
-        {
-            RequestedUrl = requestUrl;
-            HasValidUri = true;
-            ValidationState++;
-        }
-
-        public void SetVersion(string version)
-        {
-            Version = version;
-            HasValidVersion = true;
-            ValidationState++;
-        }
-    }
-
-    internal class Constants
-    {
-        public const char SingleSpace = ' ';
-        public const string Crlf = "\r\n";
-        public const string MyId = "11357836";
-        public const string Version1Dot1 = "HTTP/1.1";
-        public const string Response200 = "200 OK";
-        public const string HtmlContentType = "Content-Type: text/html";
-        public const int BufSize = 4096;
     }
 }
