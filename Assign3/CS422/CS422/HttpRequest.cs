@@ -1,6 +1,10 @@
-﻿using System;
+﻿/* Colin Phillips
+ * CS 422 - Fall 2016
+ * Assignment 3
+ */
+
+using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 
 namespace CS422
@@ -13,27 +17,16 @@ namespace CS422
         private readonly HashSet<string> _validMethods = new HashSet<string>{ "GET" };
         private readonly HashSet<string> _validVersions = new HashSet<string> {"HTTP/1.1"};
 
+        private bool _hasValidMethod;
+        private bool _hasValidUri;
+        private bool _hasValidVersion;
+        private bool _hasFinishedAddingHeaders;
+
         #region Properties
         /// <summary>
         /// Get the validation state of this request.
         /// </summary>
         public ValidationState ValidationState { get; private set; }
-
-        /// <summary>
-        /// Return the length of the first line of this HTTP request.
-        /// </summary>
-        /// <remarks>
-        /// Total length = 
-        ///     method's length   + 
-        ///     uri's length      +
-        ///     versions's length +
-        ///     two spaces        +
-        ///     '\r' and '\n' (2) 
-        /// </remarks>
-        public int HeaderFirstLineLength
-        {
-            get { return Method.Length + RequestedUri.Length + Version.Length + 4; }
-        }
 
         /// <summary>
         /// Gets the validated method, if available, of this request.
@@ -53,35 +46,20 @@ namespace CS422
         /// <summary>
         /// Gets a list of the headers associated with this request.
         /// </summary>
-        public List<HttpHeader> Headers { get; private set; }
+        public HashSet<HttpRequestHeader> Headers { get; }
 
         /// <summary>
-        /// Gets whether or not this request has a valid method.
+        /// Gets the string that represents this requests body.
         /// </summary>
-        public bool HasValidMethod { get; private set; }
-
-        /// <summary>
-        /// Gets whether or not this request has a valid URI.
-        /// </summary>
-        public bool HasValidUri { get; private set; }
-
-        /// <summary>
-        /// Gets whether or not this request has a valid version number.
-        /// </summary>
-        public bool HasValidVersion { get; private set; }
-
-        /// <summary>
-        /// Gets whether or not all headers have been added.
-        /// </summary>
-        public bool HasFinishedAddingHeaders { get; private set; }
+        public string Body { get; private set; }
         #endregion
 
         #region Constructors
         public HttpRequest()
         {
-            Method = RequestedUri = Version = string.Empty;
+            Method = RequestedUri = Version = Body = string.Empty;
             ValidationState = ValidationState.Method;
-            Headers = new List<HttpHeader>();
+            Headers = new HashSet<HttpRequestHeader>();
         }
 
         /// <param name="validMethods">A set of methods that should be used in the validation process.</param>
@@ -100,6 +78,143 @@ namespace CS422
         }
         #endregion
 
+        /// <summary>
+        /// Attempt to validate the provided HTTP request.
+        /// </summary>
+        /// <param name="value">The HTTP request to attempt to validate.</param>
+        /// <returns>
+        /// Returns the current state of the request validation process.
+        /// </returns>
+        public ValidationState TryValidate(string value)
+        {
+            if (!_hasValidMethod && ValidationState == ValidationState.Method)
+            {
+                // The method has not been validated yet.
+
+                string validMethod = null;
+
+                Verdict verdict = IsValidMethod(value, ref validMethod);
+
+                if (verdict == Verdict.Invalid)
+                {
+                    // The method was deemed invalid. This will close the connection.
+                    return ValidationState.Invalidated;
+                }
+
+                if (verdict == Verdict.Valid)
+                {
+                    // A valid method was supplied.
+                    SetMethod(validMethod);
+                }
+
+                // If neither of the above if-statements were hit, the validity of the 
+                // method is still indeterminate.
+            }
+
+            if (!_hasValidUri && ValidationState == ValidationState.Url)
+            {
+                // We are (perhaps still) attempting to determine the request's desired URL string.
+                int encounteredSpaceIndex = -1;
+                if (IsValidUriRequest(value, ref encounteredSpaceIndex) == Verdict.Valid)
+                {
+                    // A space has been detected - we can check the input for a uri:
+                    // Because the "GET " has already been validated, we can skip that 
+                    // portion of the request by taking a substring from just after the 
+                    // method (request.Method.Length + 1; where '+ 1' is the space).
+                    string requestUrl = value.Substring(Method.Length + 1, encounteredSpaceIndex - (Method.Length + 1));
+
+                    if (requestUrl == string.Empty)
+                    {
+                        // Cannot be an empty string.
+                        return ValidationState.Invalidated;
+                    }
+
+                    // This method has been validated.
+                    SetRequestUri(requestUrl);
+                }
+                if (!_hasValidUri && value.IndexOf(Constants.Crlf, StringComparison.Ordinal) >= 0)
+                {
+                    // A space was missing in this request.
+                    return ValidationState.Invalidated;
+                }
+            }
+
+            if (!_hasValidVersion && ValidationState == ValidationState.Version)
+            {
+                string validVersion = null;
+
+                Verdict verdict = IsValidVersion(value, ref validVersion);
+
+                if (verdict == Verdict.Invalid)
+                {
+                    // The version number was deemed invalid. This will close the connection.
+                    return ValidationState.Invalidated;
+                }
+
+                if (verdict == Verdict.Valid)
+                {
+                    // A valid version number was supplied.
+                    SetVersion(validVersion);
+                }
+
+                // If neither of the above if-statements were hit, the validity of the 
+                // version number is still indeterminate.
+            }
+
+            if (!_hasFinishedAddingHeaders && ValidationState == ValidationState.Headers)
+            {
+                string headerStart = value.Substring(GetRequestFirstLineLength());
+                string validField = null, validFieldValue = null;
+                uint headerCount = 0;
+
+                // There may be more than one header, so keep adding until more information is needed, the request is 
+                // invalidated, or all headers are added.
+                while (!_hasFinishedAddingHeaders)
+                {
+                    bool isEndingCrlf;
+                    Verdict verdict = IsValidHeaderOrEndingCrlf(headerStart, ref validField, ref validFieldValue, out isEndingCrlf);
+
+                    if (verdict == Verdict.Invalid)
+                    {
+                        // A header was determined to be in an invalid format.
+                        return ValidationState.Invalidated;
+                    }
+
+                    if (verdict == Verdict.Indeterminate)
+                    {
+                        // A header was not invalidate, but could not be validated either.
+                        // Go get more information from the client.
+                        break;
+                    }
+
+                    if (verdict == Verdict.Valid)
+                    {
+                        // A header (or lack thereof), was validated.
+                        if (isEndingCrlf)
+                        {
+                            // The ending CRLF was encountered with no headers in between it. This signals the
+                            // end of the request's headers.
+                            FinishAddingHeaders();
+                        }
+                        else
+                        {
+                            if (headerCount >= Headers.Count)
+                            {
+                                // To avoid adding headers from previous reads, only allow inserting the encountered header
+                                // if it never has been added before.
+                                AddHeader(validField, validFieldValue);
+                            }
+                            // Trim the headers string of the header that was just added.
+                            headerStart = headerStart.Substring(validField.Length + validFieldValue.Length + 3);
+                            headerCount++;
+                        }
+                    }
+                }
+            }
+
+            return ValidationState;
+        }
+
         #region Portion Setters
         /// <summary>
         /// Set the method for this request and advance its validation state.
@@ -108,7 +223,7 @@ namespace CS422
         public void SetMethod(string method)
         {
             Method = method;
-            HasValidMethod = true;
+            _hasValidMethod = true;
             ValidationState++;
         }
 
@@ -119,7 +234,7 @@ namespace CS422
         public void SetRequestUri(string requestUrl)
         {
             RequestedUri = requestUrl;
-            HasValidUri = true;
+            _hasValidUri = true;
             ValidationState++;
         }
 
@@ -130,7 +245,7 @@ namespace CS422
         public void SetVersion(string version)
         {
             Version = version;
-            HasValidVersion = true;
+            _hasValidVersion = true;
             ValidationState++;
         }
 
@@ -141,12 +256,12 @@ namespace CS422
         /// <param name="value">The value of the field.</param>
         public void AddHeader(string field, string value)
         {
-            if (HasFinishedAddingHeaders)
+            if (_hasFinishedAddingHeaders)
             {
                 throw new InvalidOperationException("Already finished adding headers.");
             }
 
-            Headers.Add(new HttpHeader
+            Headers.Add(new HttpRequestHeader
             {
                 Field = field,
                 Value = value
@@ -158,7 +273,7 @@ namespace CS422
         /// </summary>
         public void FinishAddingHeaders()
         {
-            if (!HasFinishedAddingHeaders)
+            if (!_hasFinishedAddingHeaders)
             {
                 // This method should only be called once, but just to be safe.
                 // I also don't think it's worth throwing an exception here like
@@ -166,7 +281,7 @@ namespace CS422
                 ValidationState++;
             }
 
-            HasFinishedAddingHeaders = true;
+            _hasFinishedAddingHeaders = true;
         }
         #endregion
 
@@ -284,7 +399,7 @@ namespace CS422
             int startIndex = GetIndexOf(Constants.SingleSpace, value, 1) + 1;
 
             // Get the index of the CRLF (if available) that follows this version number.
-            int crlfIndex = GetIndexOf(Constants.Crlf, value) + 1;
+            int crlfIndex = value.IndexOf(Constants.Crlf, StringComparison.Ordinal);
 
             // Determine the minimum length to filter out version numbers with a lesser length than the
             // one provided in the request.
@@ -326,26 +441,76 @@ namespace CS422
         /// <param name="value">The HTTP request value to parse.</param>
         /// <param name="outField">The valid and trimmed HTTP header field (if found).</param>
         /// <param name="outValue">The valid and trimmed HTTP header field value (if found).</param>
+        /// <param name="isEndingCrlf">Returns whether or not the value is an ending CRLF.</param>
         /// <returns></returns>
-        public Verdict IsValidHeader(string value, ref string outField, ref string outValue)
+        public Verdict IsValidHeaderOrEndingCrlf(string value, ref string outField, ref string outValue, out bool isEndingCrlf)
         {
-            int colonIndex = GetIndexOf(Constants.ColonSpace, value) + 1;
-            int clrfIndex = GetIndexOf(Constants.Crlf, value) + 1;
+            // Determine the index of the first color-space string in the value.
+            int colonIndex = value.IndexOf(Constants.ColonSpace, StringComparison.Ordinal);
 
-            if (colonIndex < 0 || colonIndex < 0)
+            // Determine the index of the first encountered CRLF in the value.
+            int crlfIndex = value.IndexOf(Constants.Crlf, StringComparison.Ordinal);
+
+
+            isEndingCrlf = false;
+
+            if (crlfIndex > 0 && colonIndex < 0)
             {
+                // Characters were encountered between the start and the first CRLF, but no colon was.
+                // This is invalid.
+                return Verdict.Invalid;
+            }
+
+            if ((colonIndex < 0 || crlfIndex < 0) && string.CompareOrdinal(Constants.Crlf, value) != 0)
+            {
+                // No colon was encounter and no CRLF was encountered (and the string wasn't a lone CRLF).
+                // This is not invalid, but not yet valid either as we may still receive these in future reads.
                 return Verdict.Indeterminate;
             }
 
-            outField = value.Substring(0, colonIndex);
-            outValue = value.Substring(colonIndex + 1).TrimEnd('\r', '\n');
-            
+            if (crlfIndex > 0)
+            {
+                // A colon has been encountered. Furthermore, the index of the CRLF is not zero so we have
+                // characters (including the colon) in-between the start and the CRLF. This must be a header.
+                outField = value.Substring(0, colonIndex);
+                outValue = value.Substring(colonIndex + 1, crlfIndex - (colonIndex + 1)).TrimEnd('\r', '\n');
+            }
+            else
+            {
+                // No color was encountered, but a CRLF was encountered. Furthermore, this string contains 
+                // no characters between the start and this CRLF. This must be the ending CRLF.
+                isEndingCrlf = true;
+            }
 
             return Verdict.Valid;
         }
         #endregion
 
-        #region Static Utility
+        #region Utility
+        /// <summary>
+        /// Return the length of the first line of this HTTP request.
+        /// </summary>
+        /// <remarks>
+        /// Total length = 
+        ///     method's length   + 
+        ///     uri's length      +
+        ///     versions's length +
+        ///     two spaces        +
+        ///     '\r' and '\n' (2) 
+        /// 
+        /// This length is only guaratneed to be correct IF the request's 
+        /// validation state is at HEADERS or greater.
+        /// </remarks>
+        internal int GetRequestFirstLineLength()
+        {
+            if (ValidationState < ValidationState.Headers)
+            {
+                throw new InvalidOperationException("Validiation state not sufficient to receive a valid value from GetRequestFirstLineLength()");
+            }
+
+            return Method.Length + RequestedUri.Length + Version.Length + 4;
+        }
+
         /// <summary>
         /// Get the first occurance of the passed delimiter in the string provided.
         /// </summary>
@@ -373,31 +538,13 @@ namespace CS422
 
             return -1;
         }
-
-        private static int GetIndexOf(string delim, string value, int numberToIgnore = 0)
-        {
-            int iDelim = 0;
-
-            for (int i = 0; i <= value.Length - delim.Length; i++)
-            {
-                iDelim = numberToIgnore == 0 
-                    ? delim[iDelim] == value[i] 
-                        ? iDelim + 1
-                        : 0 
-                    : 0;
-
-                if (iDelim == delim.Length - 1)
-                {
-                    return i - iDelim;
-                }
-            }
-
-            return -1;
-        }
         #endregion
 
         #region HTTP Header Class
-        internal class HttpHeader
+        /// <summary>
+        /// Represents an HTTP request header that contains a header's field and value.
+        /// </summary>
+        internal class HttpRequestHeader
         {
             public string Field { get; set; }
             public string Value { get; set; }

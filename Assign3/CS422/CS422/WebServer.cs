@@ -1,4 +1,9 @@
-﻿using System;
+﻿/* Colin Phillips
+ * CS 422 - Fall 2016
+ * Assignment 3
+ */
+
+using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -22,8 +27,6 @@ namespace CS422
         /// </returns>
         /// <exception cref="ArgumentOutOfRangeException"/>
         /// <exception cref="ArgumentNullException"/>
-        /// <exception cref="SocketException"/>
-        /// <exception cref="System.IO.IOException"/>
         public static bool Start(int port, string responseTemplate)
         {
             if (port < 0)
@@ -37,9 +40,18 @@ namespace CS422
             }
 
             TcpListener listener = new TcpListener(IPAddress.Any, port);
+            TcpClient client;
 
             listener.Start();
-            var client = listener.AcceptTcpClient();
+
+            try
+            {
+                client = listener.AcceptTcpClient();
+            }
+            catch (Exception)
+            {
+                return false;
+            }
 
             using (var networkStream = client.GetStream())
             {
@@ -63,7 +75,7 @@ namespace CS422
                         //      The request object's ValidationState will be set to 'Indeterminate'.
                         // - If Invalidated:
                         //      TryValidateHttpRequest will return 'Invalidated' and the connection will close.
-                        if (TryValidateHttpRequest(temp, request) == ValidationState.Invalidated)
+                        if (request.TryValidate(temp) == ValidationState.Invalidated)
                         {
                             // Some portion of the request has been deemed invalid.
                             // Sever the connection to the client.
@@ -83,103 +95,6 @@ namespace CS422
             }
 
             return true;
-        }
-
-        private static ValidationState TryValidateHttpRequest(string value, HttpRequest request)
-        {
-            if (!request.HasValidMethod && request.ValidationState == ValidationState.Method)
-            {
-                // The method has not been validated yet.
-
-                string validMethod = null;
-
-                Verdict verdict = request.IsValidMethod(value, ref validMethod);
-
-                if (verdict == Verdict.Invalid)
-                {
-                    // The method was deemed invalid. This will close the connection.
-                    return ValidationState.Invalidated;
-                }
-
-                if (verdict == Verdict.Valid)
-                {
-                    // A valid method was supplied.
-                    request.SetMethod(validMethod);
-                }
-
-                // If neither of the above if-statements were hit, the validity of the 
-                // method is still indeterminate.
-            }
-
-            if (!request.HasValidUri && request.ValidationState == ValidationState.Url)
-            {
-                // We are (perhaps still) attempting to determine the request's desired URL string.
-                int encounteredSpaceIndex = -1;
-                if (request.IsValidUriRequest(value, ref encounteredSpaceIndex) == Verdict.Valid)
-                {
-                    // A space has been detected - we can check the input for a uri:
-                    // Because the "GET " has already been validated, we can skip that 
-                    // portion of the request by taking a substring from just after the 
-                    // method (request.Method.Length + 1; where '+ 1' is the space).
-                    string requestUrl = value.Substring(request.Method.Length + 1, encounteredSpaceIndex - (request.Method.Length + 1));
-
-                    if (requestUrl == string.Empty)
-                    {
-                        // Cannot be an empty string.
-                        return ValidationState.Invalidated;
-                    }
-
-                    // This method has been validated.
-                    request.SetRequestUri(requestUrl);
-                }
-            }
-
-            if (!request.HasValidVersion && request.ValidationState == ValidationState.Version)
-            {
-                string validVersion = null;
-
-                Verdict verdict = request.IsValidVersion(value, ref validVersion);
-
-                if (verdict == Verdict.Invalid)
-                {
-                    // The version number was deemed invalid. This will close the connection.
-                    return ValidationState.Invalidated;
-                }
-
-                if (verdict == Verdict.Valid)
-                {
-                    // A valid version number was supplied.
-                    request.SetVersion(validVersion);
-                }
-
-                // If neither of the above if-statements were hit, the validity of the 
-                // version number is still indeterminate.
-            }
-
-            if (!request.HasFinishedAddingHeaders && request.ValidationState == ValidationState.Headers)
-            {
-                string headerStart = value.Substring(request.HeaderFirstLineLength);
-                while (!request.HasFinishedAddingHeaders)
-                {
-                    string validField = null, validFieldValue = null;
-
-                    Verdict verdict = request.IsValidHeader(headerStart, ref validField, ref validFieldValue);
-
-                    if (verdict == Verdict.Indeterminate)
-                    {
-                        // The request is not complete - go grab more from the stream.
-                        break;
-                    }
-
-                    if (verdict == Verdict.Valid)
-                    {
-                        request.AddHeader(validField, validFieldValue);
-                    }
-
-                }
-            }
-
-            return request.ValidationState;
         }
 
         private static string GetResponse(string template, HttpRequest request)

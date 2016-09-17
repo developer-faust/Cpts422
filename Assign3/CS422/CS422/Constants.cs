@@ -1,4 +1,9 @@
-﻿namespace CS422
+﻿/* Colin Phillips
+ * CS 422 - Fall 2016
+ * Assignment 3
+ */
+
+namespace CS422
 {
     /// <summary>
     /// Provides constants that are used to create HTTP repsonse strings and validate HTTP request strings.
