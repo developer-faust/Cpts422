@@ -1,28 +1,31 @@
-﻿/* Colin Phillips
- * CS 422 - Fall 2016
- * Assignment 3
- */
-
-using System;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Sockets;
+using System.Text;
 
 namespace CS422
 {
     /// <summary>
     /// Provides a container for an HTTP request. Provides methods to validate portions of a request header.
     /// </summary>
-    internal class HttpRequest
+    public class WebRequest
     {
-        private readonly HashSet<string> _validMethods = new HashSet<string>{ "GET" };
-        private readonly HashSet<string> _validVersions = new HashSet<string> {"HTTP/1.1"};
+        private readonly HashSet<string> _validMethods = new HashSet<string> { "GET" };
+        private readonly HashSet<string> _validVersions = new HashSet<string> { "HTTP/1.1" };
 
         private bool _hasValidMethod;
         private bool _hasValidUri;
         private bool _hasValidVersion;
         private bool _hasFinishedAddingHeaders;
 
+        private NetworkStream _clientStream;
+
         #region Properties
+        public Stream Body { get; private set; }
+
         /// <summary>
         /// Get the validation state of this request.
         /// </summary>
@@ -46,25 +49,20 @@ namespace CS422
         /// <summary>
         /// Gets a list of the headers associated with this request.
         /// </summary>
-        public HashSet<HttpRequestHeader> Headers { get; }
-
-        /// <summary>
-        /// Gets the string that represents this requests body.
-        /// </summary>
-        public string Body { get; private set; }
+        public ConcurrentDictionary<string, string> Headers { get; }
         #endregion
 
         #region Constructors
-        public HttpRequest()
+        public WebRequest()
         {
-            Method = RequestedUri = Version = Body = string.Empty;
+            Method = RequestedUri = Version = string.Empty;
             ValidationState = ValidationState.Method;
-            Headers = new HashSet<HttpRequestHeader>();
+            Headers = new ConcurrentDictionary<string, string>();
         }
 
         /// <param name="validMethods">A set of methods that should be used in the validation process.</param>
         /// <param name="validVersions">A set of versions that should be used in the validation process.</param>
-        public HttpRequest(IEnumerable<string> validMethods = null, IEnumerable<string> validVersions = null) : this()
+        public WebRequest(IEnumerable<string> validMethods = null, IEnumerable<string> validVersions = null) : this()
         {
             if (validMethods != null)
             {
@@ -78,6 +76,52 @@ namespace CS422
         }
         #endregion
 
+        public bool Validate(NetworkStream clientStream)
+        {
+            _clientStream = clientStream; /* Store the client's network stream for later use (writing the response). */
+
+            byte[] buf = new byte[Constants.BufSize];
+            MemoryStream requestStream = new MemoryStream();
+
+            while (ValidationState != ValidationState.Validated)
+            {
+                int bytesRead = _clientStream.Read(buf, 0, buf.Length);
+
+                if (bytesRead > 0)
+                {
+                    requestStream.Write(buf, 0, bytesRead);
+
+                    // Attempt to validate the request provided.
+                    // - If validated:
+                    //      The request object's ValidationState will be set to 'Validated'.
+                    // - If Indeterminate:
+                    //      The request object's ValidationState will be set to 'Indeterminate'.
+                    // - If Invalidated:
+                    //      TryValidateHttpRequest will return 'Invalidated' and the connection will close.
+                    if (TryValidate(Encoding.ASCII.GetString(requestStream.ToArray())) == ValidationState.Invalidated)
+                    {
+                        // Some portion of the request has been deemed invalid.
+                        return false;
+                    }
+                }
+            }
+
+            if (Headers.ContainsKey(Constants.HttpContentLength))
+            {
+                long fixedLength;
+                if (long.TryParse(Headers[Constants.HttpContentLength], out fixedLength))
+                {
+                    Body = new ConcatStream(requestStream, _clientStream, fixedLength);
+                }
+            }
+            else
+            {
+                Body = new ConcatStream(requestStream, _clientStream);
+            }
+
+            return true;
+        }
+
         /// <summary>
         /// Attempt to validate the provided HTTP request.
         /// </summary>
@@ -85,7 +129,7 @@ namespace CS422
         /// <returns>
         /// Returns the current state of the request validation process.
         /// </returns>
-        public ValidationState TryValidate(string value)
+        private ValidationState TryValidate(string value)
         {
             if (!_hasValidMethod && ValidationState == ValidationState.Method)
             {
@@ -214,6 +258,32 @@ namespace CS422
 
             return ValidationState;
         }
+        
+        public void WriteNotFoundResponse(string pageHTML)
+        {
+            if (null == _clientStream || ValidationState != ValidationState.Validated)
+            {
+                throw new InvalidOperationException("The client's request has not been validated or the connection has been closed.");
+            }  
+        }
+
+        public bool WriteHTMLResponse(string htmlString)
+        {
+            if (null == _clientStream || ValidationState != ValidationState.Validated)
+            {
+                throw new InvalidOperationException("The client's request has not been validated or the connection has been closed.");
+            }
+
+            byte[] reponse = Encoding.ASCII.GetBytes(string.Format(htmlString, Method, RequestedUri, Body.Length, Constants.MyId));
+
+            _clientStream.Write(
+                reponse,
+                0, 
+                reponse.Length);
+
+            // TODO: return true??
+            return true;
+        }
 
         #region Portion Setters
         /// <summary>
@@ -261,11 +331,8 @@ namespace CS422
                 throw new InvalidOperationException("Already finished adding headers.");
             }
 
-            Headers.Add(new HttpRequestHeader
-            {
-                Field = field,
-                Value = value
-            });
+            // Normalize the field to easily search for it later.
+            Headers.TryAdd(field.ToLower(), value);
         }
 
         /// <summary>
@@ -539,16 +606,6 @@ namespace CS422
             return -1;
         }
         #endregion
-
-        #region HTTP Header Class
-        /// <summary>
-        /// Represents an HTTP request header that contains a header's field and value.
-        /// </summary>
-        internal class HttpRequestHeader
-        {
-            public string Field { get; set; }
-            public string Value { get; set; }
-        }
-        #endregion
     }
+
 }

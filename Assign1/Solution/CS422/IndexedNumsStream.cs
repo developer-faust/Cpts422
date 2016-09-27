@@ -155,7 +155,7 @@ namespace CS422
                 throw new ArgumentException("Sum of offset and count is greater than buffer length.");
             }
                 
-            Seek(offset, SeekOrigin.Begin);
+            //Seek(offset, SeekOrigin.Begin);
 
             while (bytesRead < count)
             {
