@@ -15,6 +15,7 @@ namespace CS422
         public const char NullByte = '\0';
         public const char SingleSpace = ' ';
         public const string Crlf = "\r\n";
+        public const string DoubleCrlf = "\r\n\r\n";
         public const string ColonSpace = ": ";
         public const string MyId = "11357836";
         public const string Version1Dot1 = "HTTP/1.1";

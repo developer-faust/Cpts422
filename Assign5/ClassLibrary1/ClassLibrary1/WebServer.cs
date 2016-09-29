@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-using WebRequest = CS422.WebRequest;
 
 namespace CS422
 {
@@ -12,6 +11,7 @@ namespace CS422
     {
         private static readonly BlockingCollection<TcpClient> _collection = new BlockingCollection<TcpClient>();
         private static readonly List<Thread> _pool = new List<Thread>();
+        private static readonly HashSet<WebService> _services = new HashSet<WebService> {new DemoService()};
         private static TcpListener _listener;
         private static Thread _listeningThread;
         private static int _threadCount;
@@ -76,7 +76,7 @@ namespace CS422
 
         public static void AddService(WebService service)
         {
-            
+            _services.Add(service);
         }
 
         private static void ClientThreadWork()
@@ -128,14 +128,18 @@ namespace CS422
 
         private static WebService FindHandler(WebRequest request)
         {
-            WebService service = null;
-
-            if (request.RequestedUri[0] == '/')
+            foreach (var service in _services)
             {
-                service = new DemoService();
+                if (string.Compare(
+                    request.RequestedUri[0].ToString(), 
+                    service.ServiceURI,
+                    StringComparison.OrdinalIgnoreCase) == 0)
+                {
+                    return service;
+                }
             }
 
-            return service;
+            return null;
         }
     }
 }

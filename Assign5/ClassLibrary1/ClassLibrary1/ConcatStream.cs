@@ -17,18 +17,23 @@ namespace CS422
         {
             get
             {
-                if (!CanSeek && !_first.CanSeek && !_givenFixedLength)
+                if (_givenFixedLength)
+                {
+                    return _length;
+                }
+
+                if (!CanSeek)
                 {
                     throw new NotSupportedException("Only forward reading is provided.");
                 }
 
-                return _length;
+                return _first.Length + _second.Length;
             }
         }
 
         public override long Position
         {
-            get { return _position; }
+            get { return _first.Position + _second.Position; }
             set
             {
                 if (!CanSeek)
@@ -54,6 +59,16 @@ namespace CS422
 
         public ConcatStream(Stream first, Stream second)
         {
+            if (null == first)
+            {
+                throw new ArgumentNullException("first");
+            }
+
+            if (null == second)
+            {
+                throw new ArgumentNullException("second");
+            }
+
             if (!first.CanSeek)
             {
                 // If the first stream cannot seek then its length cannot be access.
@@ -132,17 +147,12 @@ namespace CS422
 
             int bytesRead = _first.Read(buffer, offset, count);
 
-            return _second.Read(buffer, bytesRead + offset, count - bytesRead);
+            return bytesRead + _second.Read(buffer, bytesRead + offset, count - bytesRead);
         }
 
         public override void Write(byte[] buffer, int offset, int count)
         {
             throw new NotSupportedException("Cannot read.");
-
-            if (!CanWrite)
-            {
-                throw new NotSupportedException("Writing not supported by one or both streams.");
-            }
         }
     }
 }

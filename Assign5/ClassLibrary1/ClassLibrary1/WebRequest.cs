@@ -13,8 +13,8 @@ namespace CS422
     /// </summary>
     public class WebRequest
     {
-        private readonly HashSet<string> _validMethods = new HashSet<string> { "GET" };
-        private readonly HashSet<string> _validVersions = new HashSet<string> { "HTTP/1.1" };
+        private readonly HashSet<string> _validMethods = new HashSet<string> {"GET"};
+        private readonly HashSet<string> _validVersions = new HashSet<string> {"HTTP/1.1"};
 
         private bool _hasValidMethod;
         private bool _hasValidUri;
@@ -24,6 +24,7 @@ namespace CS422
         private NetworkStream _clientStream;
 
         #region Properties
+
         public Stream Body { get; private set; }
 
         /// <summary>
@@ -50,9 +51,11 @@ namespace CS422
         /// Gets a list of the headers associated with this request.
         /// </summary>
         public ConcurrentDictionary<string, string> Headers { get; }
+
         #endregion
 
         #region Constructors
+
         public WebRequest()
         {
             Method = RequestedUri = Version = string.Empty;
@@ -66,15 +69,63 @@ namespace CS422
         {
             if (validMethods != null)
             {
-                foreach (var method in validMethods) { _validMethods.Add(method); }
+                foreach (var method in validMethods)
+                {
+                    _validMethods.Add(method);
+                }
             }
 
             if (validVersions != null)
             {
-                foreach (var version in validVersions) { _validVersions.Add(version); }
+                foreach (var version in validVersions)
+                {
+                    _validVersions.Add(version);
+                }
             }
         }
+
         #endregion
+
+        public void WriteNotFoundResponse(string pageHTML)
+        {
+            if (null == _clientStream || ValidationState != ValidationState.Validated)
+            {
+                throw new InvalidOperationException(
+                    "The client's request has not been validated or the connection has been closed.");
+            }
+        }
+
+        public bool WriteHTMLResponse(string htmlString)
+        {
+            if (null == _clientStream || ValidationState != ValidationState.Validated)
+            {
+                throw new InvalidOperationException(
+                    "The client's request has not been validated or the connection has been closed.");
+            }
+
+            long bodyLength;
+
+            try
+            {
+                bodyLength = Body.Length;
+            }
+            catch (NotSupportedException)
+            {
+                bodyLength = -1;
+            }
+
+            byte[] reponse =
+                Encoding.ASCII.GetBytes(string.Format(htmlString, Method, RequestedUri, bodyLength, Constants.MyId));
+
+
+            _clientStream.Write(
+                reponse,
+                0,
+                reponse.Length);
+
+            // TODO: return true??
+            return true;
+        }
 
         public bool Validate(NetworkStream clientStream)
         {
@@ -101,23 +152,13 @@ namespace CS422
                     if (TryValidate(Encoding.ASCII.GetString(requestStream.ToArray())) == ValidationState.Invalidated)
                     {
                         // Some portion of the request has been deemed invalid.
+                        requestStream.Dispose();
                         return false;
                     }
                 }
             }
 
-            if (Headers.ContainsKey(Constants.HttpContentLength))
-            {
-                long fixedLength;
-                if (long.TryParse(Headers[Constants.HttpContentLength], out fixedLength))
-                {
-                    Body = new ConcatStream(requestStream, _clientStream, fixedLength);
-                }
-            }
-            else
-            {
-                Body = new ConcatStream(requestStream, _clientStream);
-            }
+            SetBody(requestStream);
 
             return true;
         }
@@ -258,39 +299,13 @@ namespace CS422
 
             return ValidationState;
         }
-        
-        public void WriteNotFoundResponse(string pageHTML)
-        {
-            if (null == _clientStream || ValidationState != ValidationState.Validated)
-            {
-                throw new InvalidOperationException("The client's request has not been validated or the connection has been closed.");
-            }  
-        }
-
-        public bool WriteHTMLResponse(string htmlString)
-        {
-            if (null == _clientStream || ValidationState != ValidationState.Validated)
-            {
-                throw new InvalidOperationException("The client's request has not been validated or the connection has been closed.");
-            }
-
-            byte[] reponse = Encoding.ASCII.GetBytes(string.Format(htmlString, Method, RequestedUri, Body.Length, Constants.MyId));
-
-            _clientStream.Write(
-                reponse,
-                0, 
-                reponse.Length);
-
-            // TODO: return true??
-            return true;
-        }
 
         #region Portion Setters
         /// <summary>
         /// Set the method for this request and advance its validation state.
         /// </summary>
         /// <param name="method">The validated method string.</param>
-        public void SetMethod(string method)
+        private void SetMethod(string method)
         {
             Method = method;
             _hasValidMethod = true;
@@ -301,7 +316,7 @@ namespace CS422
         /// Set the URI for this request and advance its validation state.
         /// </summary>
         /// <param name="requestUrl">The validated URI string.</param>
-        public void SetRequestUri(string requestUrl)
+        private void SetRequestUri(string requestUrl)
         {
             RequestedUri = requestUrl;
             _hasValidUri = true;
@@ -312,7 +327,7 @@ namespace CS422
         /// Set the version for this request and advance its validation state.
         /// </summary>
         /// <param name="version">The validated version string.</param>
-        public void SetVersion(string version)
+        private void SetVersion(string version)
         {
             Version = version;
             _hasValidVersion = true;
@@ -324,7 +339,7 @@ namespace CS422
         /// </summary>
         /// <param name="field">The field value.</param>
         /// <param name="value">The value of the field.</param>
-        public void AddHeader(string field, string value)
+        private void AddHeader(string field, string value)
         {
             if (_hasFinishedAddingHeaders)
             {
@@ -338,7 +353,7 @@ namespace CS422
         /// <summary>
         /// Mark this request as having all headers filled in.
         /// </summary>
-        public void FinishAddingHeaders()
+        private void FinishAddingHeaders()
         {
             if (!_hasFinishedAddingHeaders)
             {
@@ -349,6 +364,27 @@ namespace CS422
             }
 
             _hasFinishedAddingHeaders = true;
+        }
+
+        private void SetBody(MemoryStream requestStream)
+        {
+            int bodyStart =
+                Encoding.ASCII.GetString(requestStream.ToArray())
+                    .IndexOf(Constants.DoubleCrlf, StringComparison.Ordinal) + Constants.DoubleCrlf.Length;
+
+            requestStream.Seek(bodyStart, SeekOrigin.Begin);
+
+            if (Headers.ContainsKey(Constants.HttpContentLength))
+            {
+                long fixedLength;
+                if (long.TryParse(Headers[Constants.HttpContentLength], out fixedLength))
+                {
+                    Body = new ConcatStream(requestStream, _clientStream, fixedLength);
+                    return;
+                }
+            }
+
+            Body = new ConcatStream(requestStream, _clientStream);
         }
         #endregion
 
